@@ -1,0 +1,408 @@
+
+/**********************************************************************************************
+
+GET CYCLE Cycle Detection Application getcycle.c Rev 0 by -DL-
+
+Scope: 
+Read active_log.txt and determine if the print is from a cycle. 
+If not, clear the file. 
+
+Function:
+If the print is from a cycle then:
+find the cycle number to be used in the print file name.
+wait for an end of cycle indication.
+Print to PDF file and copy raw text to PCL folder.
+
+Notes:
+Model configurations are set by the shell script file startprocess.sh in the applications 
+folder located in the web server file location. This is done by command arguments. 1 through 7
+
+
+***********************************************************************************************/
+
+#include <stdio.h>
+#include <string.h>
+#include<stdlib.h>
+#include <windows.h>
+#include <iostream>
+
+
+#define false (0!=0)
+#define LOG_FILE	"active_log.txt"
+#define STATUS_FILE	"status_log.txt"
+using namespace std;
+
+
+////////// GET CONFIG ////////// GET CONFIG ////////// GET CONFIG ////////// GET CONFIG ////////// GET CONFIG ////////// GET CONFIG   
+
+// Configuration function started from main below
+char *get_config(char *option, char *config_str) 
+{
+   FILE * pConfFile;
+   int line_num = 1; //represents each line being checked for cycle number. Starts at 1
+   char config_line[512]; //Each Line in FIle
+   char str[100]; //character strings withing each line
+   int line_length=0; //length of string line where cycle is found;
+   int str_length = 0; //How many characters in the configuration string.
+
+   pConfFile = fopen("configuration.txt" , "r"); // Read text file
+
+   if (pConfFile == NULL) printf("configuration.txt file does not exists or is incorrectly named.");
+   if (pConfFile != NULL) //if file exists then do this.....
+	{	
+		while (fgets(config_line, 512, pConfFile)!= NULL) //while checking each line for a string and not yet found
+		{
+         	if((strstr(config_line, option)) != NULL) //If configuration option found then extract the string.......
+			{
+				str_length = (strlen(config_line) - strlen(option)); //get required length of option string
+				strncpy(config_str, &config_line[strlen(option)], str_length-1);
+				config_str[str_length-1] = '\0';
+		        //printf("This is what was found: %s\n", config_str); // for testing
+			//	printf("config string test %s\n", config_str);//For Testing
+			}
+			//else // if cycle number not found, spoil the number to be ignored in the main function
+			//{
+			//	config_str[1]='\0';
+			//	strncpy(config_str,"P",1);
+			//}
+			line_num++;
+		}
+		fclose (pConfFile);
+	}
+	return config_str;
+}
+
+
+
+
+  ////////// GET CYCLE NUMBER  ////////// GET CYCLE NUMBER  ////////// GET CYCLE NUMBER  ////////// GET CYCLE NUMBER  //////////
+
+//get_cycle_number function started from main below
+char *get_cycle_number(char *cycle_str, char *argv_start_point, char *cycle_num) 
+{
+   FILE * pFile;
+   int cycle_line_num = 1; //represents each line being checked for cycle number. Starts at 1
+   int cycle_find_result = 0; //if cycle found, then 0 changes to how many times found.
+   char cycle_temp[512]; //entire file
+   char str[100]; //character strings withing each line
+   char space[] = " ";//used to find end of cycle number
+   int start_point = atoi(argv_start_point);//Location of cycle count number in print header. Let's try the strchr search?
+   int num_length; //How many digits in the cycle count.
+
+	pFile = fopen (LOG_FILE , "r"); // Read text file
+
+	if (pFile != NULL) //if file exists then do this.....
+	{	
+		while ((fgets(cycle_temp, 512, pFile)!= NULL) && (cycle_find_result == 0)) //while checking each line for a cycle and not yet found
+		{
+         		if((strstr(cycle_temp, cycle_str)) != NULL) //If cycle number found then extract the number from the text string.......
+			{
+				//Determine how many characters the cycle number contains by finding the first space character at the end of the number.
+				num_length = 1;	//start with a default 1 character			
+				if (cycle_temp[start_point+1]==space[0]) num_length = 1;
+				else if (cycle_temp[start_point+2]==space[0])num_length = 2;
+				else if (cycle_temp[start_point+3]==space[0])num_length = 3;
+				else if (cycle_temp[start_point+4]==space[0])num_length = 4;
+                                else if (cycle_temp[start_point+5]==space[0])num_length = 5;
+
+				//http://www.dreamincode.net/forums/topic/54086-cut-a-string-into-different-peices/
+       				strncpy(cycle_num, &cycle_temp[start_point], num_length);
+			        cycle_num[num_length] = '\0';
+		
+//				printf("cycle number test %s\n", cycle_num);//For Testing
+	     			cycle_find_result++; //indicate that cycle number was found
+			}
+			else // if cycle number not found, spoil the number to be ignored in the main function
+			{
+				cycle_num[1]='\0';
+				strncpy(cycle_num,"X",1);
+			}
+			cycle_line_num++;
+		}
+		fclose (pFile);
+	}
+	return cycle_num;
+}
+
+
+  ////////// DETECT CYCLE END  ////////// DETECT CYCLE END  ////////// DETECT CYCLE END  ////////// DETECT CYCLE END  //////////
+
+//http://www.codingunit.com/c-tutorial-searching-for-strings-in-a-text-file
+//
+int end_detected(char *str_end)
+{
+   FILE * pFile;
+   int end_line_num = 1;
+   int end_find_result = 0;
+   char end_temp[512];
+
+   pFile = fopen (LOG_FILE , "r");
+
+	while((fgets(end_temp, 512, pFile) != NULL) && (end_find_result == 0)) 
+	{
+		if((strstr(end_temp, str_end)) != NULL) 
+		{
+//                	printf("%s DETECTED AT LINE %d\n", str_end, end_line_num);//For testing
+                        end_find_result++;
+                }
+                end_line_num++;
+        }
+
+	fclose (pFile);
+
+	return(end_find_result);
+}
+
+
+
+
+  ////////// CONFIRM CYCLE  ////////// CONFIRM CYCLE  ////////// CONFIRM CYCLE  ////////// CONFIRM CYCLE  ////////// CONFIRM CYCLE
+
+int confirm_cycle(char *str_confirm)
+{
+   FILE * pFile;
+   int confirm_line_num = 1;
+   int confirm_find_result = 0;
+   char confirm_temp[512];
+
+   pFile = fopen (LOG_FILE , "r");
+
+	while((fgets(confirm_temp, 512, pFile) != NULL) && (confirm_find_result == 0)) 
+	{
+		if((strstr(confirm_temp, str_confirm)) != NULL) 
+		{
+//                	printf("%s CONFIRMS CYCLE AT LINE %d\n", str_confirm, confirm_line_num);// For testing
+			confirm_find_result++; 
+                }
+                confirm_line_num++;
+        }
+
+	fclose (pFile);
+
+	return(confirm_find_result);
+}
+
+
+
+
+
+  ////////// PRINT  ////////// PRINT  ////////// PRINT  ////////// PRINT  ////////// PRINT  ////////// PRINT  ////////// PRINT
+
+int print_to_pdf(char *cyclenum, char *lines)
+{
+FILE * pFile;
+FILE * newpdfFile;
+char cp_pcl[128];
+char newpdf[128];
+char prntcmnd[256];
+int PrintSuccess = 0;
+
+	sprintf(cp_pcl,".\\pcl\\cycle_%s.pcl", cyclenum);
+	CopyFile(LOG_FILE, cp_pcl,0);
+
+        sprintf(prntcmnd,"pcl6.exe -J\"@PJL SET ORIENTATION = PORTRAIT\" -J\"@PJL SET FORMLINES=%s\" -dNOPAUSE -sDEVICE=pdfwrite -sOutputFile=.\\pdf\\cycle_%s.pdf .\\pcl\\cycle_%s.pcl", lines, cyclenum, cyclenum); 
+//	printf("%s\n",prntcmnd);//for testing
+        system(prntcmnd); // print to pdf
+
+        sprintf(newpdf,".\\pdf\\cycle_%s.pdf",cyclenum);
+//	printf("%s\n",newpdf);// For Testing
+	newpdfFile = fopen(newpdf,"r"); //open new pdf file to verify that it exists.
+	if  (newpdfFile != NULL) PrintSuccess = 1; // if pdf file not created, indicate failure.
+	
+        pFile = fopen (LOG_FILE , "w");
+	fclose (pFile);
+
+	return(PrintSuccess);
+}	
+
+void clear_log()
+{
+FILE * pFile;
+		
+        pFile = fopen (LOG_FILE , "w");
+	fclose (pFile);
+}
+
+////////// MAIN  ////////// MAIN  ////////// MAIN  ////////// MAIN  ////////// MAIN  ////////// MAIN  ////////// MAIN  ////////// MAIN  
+
+int main( int argc)
+{
+
+FILE * pFile; //active_log.txt
+FILE * StatFile;
+int sequence = 0; //used for delaying functions
+int interval = 10000; // Interval timer for checking log file
+int count = 0; //used to count characters
+int receiving = 0; //compared with character count to determine if log file still receiving data
+int c; //each character
+char cycnum[6]; 
+char print_time[48];  //used for providing time for logging process displayed on web page
+char statline [128];
+int done = false ;
+int printOK;
+char config_return [128];
+char config_desc [128];
+char cycle_number [128]="";
+char start_loc [128];
+char confirm [128];
+char cycle_end [128];
+char page_lines [128];
+
+printf("\nCycle Detection Application\nMonitors active_log.txt file every 10 seconds.\nPrints completed cycle to PDF using PCL6\nIgnores all non cycle print functions\n\Refer to README file for details\nWindows Version 2013-DEC-03 By -DL-\n\n");//send to web page log once at startup.
+
+
+get_config("CONFIGURATION TYPE: ", config_return);
+_snprintf(config_desc,128,"%s", config_return);
+printf("%s\n\n", config_desc);
+
+get_config("1.cycle Number string =", config_return);
+_snprintf(cycle_number,128,"%s", config_return);
+printf("1.cycle Number string = \"%s\"\n\n", cycle_number);
+
+get_config("2.Start point =", config_return);
+_snprintf(start_loc,128,"%s", config_return);
+printf("2.Start point = %s\n\n",start_loc);
+
+
+get_config("3.confirm cycle =", config_return);
+_snprintf(confirm,128,"%s", config_return);
+printf("3.confirm cycle = \"%s\"\n\n",confirm);
+
+get_config("4.Confirm end =", config_return);
+_snprintf(cycle_end,128,"%s", config_return);
+printf("4.Confirm end = \"%s\"\n\n",cycle_end);
+
+get_config("5.lines per page =", config_return);
+_snprintf(page_lines,128,"%s", config_return);
+printf("5.lines per page = %s\n\n\n\n\n",page_lines);
+
+//time_t t = time(NULL); //used for providing time for logging process displayed on web page
+//struct tm tm = *localtime(&t); //used for providing time for logging process displayed on web page
+
+//used for providing time for logging process displayed on web page
+//sprintf(print_time,"%d-%d-%d %d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);// display on web page log
+//Printed to nohup.out (processlog.txt) in web page
+
+
+    while( !done )  // Stay Running Continously unless error or manually stopped.
+    {
+
+        Sleep(interval) ;// Check Log file every ## seconds---must have argument or segment fault
+	
+//	time_t t = time(NULL); //used for providing time for logging process displayed on web page
+//	struct tm tm = *localtime(&t); //used for providing time for logging process displayed on web page
+
+	//used for providing time for logging process displayed on web page
+//	sprintf(print_time,"%d-%d-%d %d:%d:%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+	pFile = fopen (LOG_FILE , "r"); // read only active_log.txt 
+
+	 if (pFile != NULL) //if active_log.txt exist, then do this below......
+	 {
+		c = getc(pFile); // open log file to read characters
+		
+		while(c != EOF) {//Continue to read each character until the end of file is detected.
+    			count ++; // increase count for each character.
+   		 	c = getc(pFile);
+		}
+
+		fclose(pFile); //must close the file to reset for next interval pass
+
+		if ( count == 0) sequence = 0; // Always reset sequence when file empty
+		else { //If log file is active, perform the following actions within the brackets.
+
+			if (sequence == 0){ // Start the sequence.
+			sequence = 1; 
+			sprintf(statline,"1: LOG FILE ACTIVE");
+			printf("%s\n",statline);//display cycle number
+			StatFile = fopen(STATUS_FILE, "a");
+			fprintf(StatFile, "%s\n",statline); //Store in Status Log
+			fclose(StatFile);
+			}
+
+			if (sequence == 3){ // After allowing page header to print, confirm cycle
+				if (confirm_cycle(confirm) == 0){//Go to Confirm Cycle. Even though cycle number detected, if not valid cycle then clear log
+					clear_log();
+					sprintf(statline, "3: NO CYCLE - active_log.txt CLEARED\n");
+					printf("%s\n",statline);//display cycle number
+					StatFile = fopen(STATUS_FILE, "a");
+					fprintf(StatFile, "%s\n",statline); //Store in Status Log
+					fclose(StatFile);
+				} 
+				else { //if cycle confirmed, display cycle number on web page process log
+					sprintf(statline,"3: CYCLE NUMBER: %s", cycnum); 
+					printf("%s\n",statline);//display cycle number
+					StatFile = fopen(STATUS_FILE, "a");
+					fprintf(StatFile, "%s\n",statline); //Store in Status Log
+					fclose(StatFile);
+					sequence = 4;//Allow for cycle end detection
+				}
+			}
+			if (sequence == 4){ //After cycle is confirmed, monitor for end of cycle.
+				if (end_detected(cycle_end) >= 1){ // Go to end_detected routine. If text found then....
+					sprintf(statline,"4: END OF CYCLE DETECTED");
+					printf("%s\n",statline);//display cycle number
+					StatFile = fopen(STATUS_FILE, "a");
+					fprintf(StatFile, "%s\n",statline); //Store in Status Log
+					fclose(StatFile);
+					sequence = 5;//allow print function
+				}
+			}
+			if ((sequence == 5)&&(receiving == count)){//Wait for printing to finish after detecting end.
+				sprintf(statline,"5: PRINTING");
+				printf("%s\n",statline);//display cycle number
+				StatFile = fopen(STATUS_FILE, "a");
+				fprintf(StatFile, "%s\n",statline); //Store in Status Log
+				fclose(StatFile);
+				printOK = print_to_pdf(cycnum,page_lines);//Go to print_to_pdf routine. Start printing function. Argument 6 sets lines per page.
+					if (printOK == 1){
+						sprintf(statline,"6: PRINT SUCCESSFULL\n");
+						printf("%s\n",statline);//display cycle number
+						StatFile = fopen(STATUS_FILE, "a");
+						fprintf(StatFile, "%s\n",statline); //Store in Status Log
+						fclose(StatFile);
+					}
+					else {
+						sprintf(statline,"6: PRINT FAILED\n");
+						printf("%s\n",statline);//display cycle number
+						StatFile = fopen(STATUS_FILE, "a");
+						fprintf(StatFile, "%s\n",statline); //Store in Status Log
+						fclose(StatFile);
+					}
+
+			}
+
+			if (sequence == 2){ //Get cycle number
+				sprintf(statline,"2: VERIFY IF CYCLE");
+				printf("%s\n",statline);//display cycle number
+				StatFile = fopen(STATUS_FILE, "a");
+				fprintf(StatFile, "%s\n",statline); //Store in Status Log
+				fclose(StatFile);
+				get_cycle_number(cycle_number,start_loc,cycnum);//go to get_cycle_number routine for cycle number
+				if (strlen(cycnum) >= 2) sequence = 3; // Is there a cycle number (at least 2 digits)? If yes, go to next sequence. 
+				else { // if no cycle number, clear the log and reset sequence.
+				    clear_log();
+				    sprintf(statline,"3: NO CYCLE DETECTED - active_log.txt CLEARED\n");
+				    printf("%s\n",statline);//display cycle number
+				    StatFile = fopen(STATUS_FILE, "a");
+				    fprintf(StatFile, "%s\n",statline); //Store in Status Log
+				    fclose(StatFile);
+				}
+			}
+
+			if (sequence == 1) sequence = 2;// To allow the 1st page to print, get the cycle number during next interval.
+
+		} // End bracket for active_log.txt not empty
+//		printf("YeaH!!! Sequence %d", count); //for testing
+		fclose(pFile);//for testing
+		receiving = count; //equalize with character count to be check for active printing on next interval
+		count = 0; // reset for next interval
+       	  
+       	  } //End bracket for checking if active_log.txt exists. 
+
+        else printf("LOG_FILE = NULL\n");//if active_log file does no exist
+//	fflush(stdout);//clear stdout every interval. This is for the proper function of writing to the process log.
+
+   }
+}
+
