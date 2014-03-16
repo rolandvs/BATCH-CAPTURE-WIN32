@@ -8,7 +8,7 @@ The Windows Version of the Batch-Capture program is written using C++ Visual Stu
 
 The process is the same as the original Batch-Capture with the exception that there is no shell command to provide the configuration. A text file is used to configure the cycle (batch) capture.
 
-The serial capture is still using Python with PYSERIAL. The version posted here does not forward the serial to a tcp socket.
+The serial capture is still using Python with PYSERIAL. The version posted here does not forward the serial to a tcp socket. The Python version is 2.7 using py2exe to compile the code to a Windows executatable.
 
 The PCL6.exe binary must be used for printing to pdf. There is a binary version available for download from this site:
 
