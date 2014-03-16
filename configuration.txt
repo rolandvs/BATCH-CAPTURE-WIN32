@@ -1,0 +1,29 @@
+CONFIGURATION TYPE: AB Compact Logix 80 Column Color
+
+//Enter the exact text after the = with no space
+
+
+// Example: EX: ======================================================[ Cycle 1199 Page 1 ]=
+
+1.cycle Number string =[ Cycle
+
+
+
+// starting point of the text
+
+2.Start point =62
+
+
+// Confirmation that the incomming text is a cycle. SPACES ARE ACCEPTED
+
+3.confirm cycle =TIME         
+
+
+// Determine the end of the cycle
+
+4.Confirm end =End of Cycle
+
+
+// lines per page
+
+5.lines per page =62
