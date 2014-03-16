@@ -12,6 +12,9 @@ The serial capture is still using Python with PYSERIAL. The version posted here 
 
 The PCL6.exe binary must be used for printing to pdf. There is a binary version available for download from this site:
 
+http://www.columbia.edu/~em36/ghostpcl.html
+
+Win32 version link from the same site above:
 http://dl.dropbox.com/u/271144/GhostPCL-W32-Binaries.zip
 
 The PCL6.exe can be saved in the same folder as the compiled Batch-Capture application.
